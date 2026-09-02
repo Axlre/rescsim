@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simulador — Reto Final del Robot Explorador</title>
+<title>Simulador</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
@@ -115,7 +115,7 @@
 
 <div class="header-nav">
   <div class="header-info">
-    <h1>Entorno de Desarrollo: Rescue Line</h1>
+    <h1>Entorno de Desarrollo</h1>
     <span id="userBadge" class="user-badge" onclick="cerrarSesion()">👤 Invitado (Click para salir)</span>
   </div>
 </div>
@@ -302,9 +302,9 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('codeArea').addEventListener('input', triggerCloudSave);
   }
 
-  // --- LÓGICA DE SESIÓN (FIREBASE) ---
+  // (FIREBASE) 
   function initApp() {
-    let savedUser = localStorage.getItem('rescue_user_session'); // Solo guarda quién está logueado
+    let savedUser = localStorage.getItem('rescue_user_session'); 
     if(savedUser) {
       currentUser = JSON.parse(savedUser);
       completarLogin();
@@ -450,7 +450,7 @@ document.addEventListener('DOMContentLoaded', function() {
       "<html><head><meta charset=\"UTF-8\"><title>Reporte - " + username + "<\/title>",
       "<style>body{font-family:sans-serif; padding:40px; line-height:1.6; color:#333; max-width:900px; margin:0 auto;} pre{background:#f4f4f4; padding:15px; border-radius:5px;} img{max-width:100%; border:1px solid #ccc; border-radius:5px;}<\/style>",
       "<\/head><body>",
-      "<h1>Entregable: Rescue Line<\/h1>",
+      "<h1>Entregable<\/h1>",
       "<p><strong>Alumno/Equipo:<\/strong> " + username + "<\/p><hr>",
       "<h2>1. Justificación y Lógica<\/h2>",
       "<p>" + logicText + "<\/p>",
