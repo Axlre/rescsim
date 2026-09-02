@@ -3,10 +3,12 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simulador</title>
+<title>Simulador — Reto Final del Robot Explorador</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
+<script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.4.0/firebase-database-compat.js"></script>
 
 <style type="text/css">
   :root{
@@ -90,7 +92,8 @@
   .form-group textarea { width:100%; height:150px; background:var(--navy); border:1px solid var(--border); border-radius:8px; color:var(--text-light); padding:12px; font-family:var(--font-ui); resize:vertical; }
   .image-preview { margin-top:10px; max-width:100%; height:auto; border-radius:8px; display:none; border:1px solid var(--border); }
   .form-group input[type="file"] { background:var(--navy); padding:10px; border-radius:8px; border:1px dashed var(--border); width:100%; color:var(--text-light-muted); }
-  .action-bar { display:flex; gap:10px; justify-content:flex-end; border-top:1px solid var(--border); padding-top:20px; margin-top:20px; }
+  .action-bar { display:flex; gap:10px; justify-content:space-between; align-items:center; border-top:1px solid var(--border); padding-top:20px; margin-top:20px; }
+  #syncStatus { font-size:12px; color:var(--good); display:none; }
   
   .admin-table { width:100%; border-collapse: collapse; margin-top:10px; }
   .admin-table th, .admin-table td { padding:12px; text-align:left; border-bottom:1px solid var(--border); }
@@ -103,7 +106,7 @@
 <div id="loginModal" class="modal-overlay">
   <div class="modal">
     <h2>Identificación de Usuario</h2>
-    <p>Ingresa tu usuario y un PIN. Esto guardará tu trabajo para que no lo pierdas.</p>
+    <p>Ingresa tu usuario y un PIN. Tu progreso se guardará automáticamente en la nube.</p>
     <input type="text" id="inUsername" placeholder="Ej. Axel_UANL" autocomplete="off">
     <input type="password" id="inPin" placeholder="PIN (Mínimo 4 caracteres)" autocomplete="off">
     <button id="btnLogin" class="primary">Entrar al Entorno</button>
@@ -112,7 +115,7 @@
 
 <div class="header-nav">
   <div class="header-info">
-    <h1>Entorno de Desarrollo</h1>
+    <h1>Entorno de Desarrollo: Rescue Line</h1>
     <span id="userBadge" class="user-badge" onclick="cerrarSesion()">👤 Invitado (Click para salir)</span>
   </div>
 </div>
@@ -177,7 +180,6 @@ function loop() {
 </textarea>
       </div>
       
-      <!-- AYUDAS PARA PRINCIPIANTES -->
       <div class="snippets-panel">
         <h3>Insertar Rápido (Haz click para agregar al código)</h3>
         <div class="snippet-tags">
@@ -201,27 +203,27 @@ function loop() {
       <div class="form-group">
         <label>1. Lógica y Explicación</label>
         <p style="font-size:13px; color:var(--text-light-muted); margin-top:0;">Describe cómo implementaste tu control y lógica de evasión.</p>
-        <textarea id="inLogica" placeholder="Escribe tu justificación técnica aquí..."></textarea>
+        <textarea id="inLogica" placeholder="Escribe tu justificación técnica aquí..." oninput="triggerCloudSave()"></textarea>
       </div>
       <div class="form-group">
         <label>2. Diagrama de Máquina de Estados</label>
-        <p style="font-size:13px; color:var(--text-light-muted); margin-top:0;">Sube una foto de tu diagrama de flujo.</p>
-        <input type="file" id="inFile" accept="image/*" onchange="previewImage(event)">
+        <p style="font-size:13px; color:var(--text-light-muted); margin-top:0;">Sube una foto de tu diagrama de flujo. Se comprimirá automáticamente.</p>
+        <input type="file" id="inFile" accept="image/*" onchange="previewAndCompressImage(event)">
         <img id="imgPreview" class="image-preview">
       </div>
       <div class="action-bar">
-        <button onclick="guardarEntregableLocal()" class="primary">💾 Guardar Progreso Manual</button>
+        <span id="syncStatus">✔ Sincronizado en la nube</span>
+        <button onclick="guardarEntregableNube()" class="primary">💾 Forzar Guardado</button>
       </div>
     </div>
   </div>
 </div>
 
-<!-- VISTA 3: ADMIN (Solo Axel) -->
 <div id="view-admin" class="view-section">
   <div class="panel">
     <div class="panel-head"><h2>Panel de Administrador (Axel)</h2></div>
     <div style="padding:20px;">
-      <p style="color:var(--text-light-muted);">Usuarios registrados en esta computadora local.</p>
+      <p style="color:var(--text-light-muted);">Alumnos registrados en Firebase.</p>
       <table class="admin-table">
         <thead>
           <tr>
@@ -231,7 +233,6 @@ function loop() {
           </tr>
         </thead>
         <tbody id="adminTableBody">
-          <!-- Se llena por JS -->
         </tbody>
       </table>
     </div>
@@ -245,22 +246,28 @@ function loop() {
 document.addEventListener('DOMContentLoaded', function() {
   "use strict";
 
-  // --- VARIABLES GLOBALES ---
+  const firebaseConfig = {
+    apiKey: "AIzaSyD0nKK-nKQNEwkWJavtiy2tDLkRE2cawIE",
+    authDomain: "simresc-97132.firebaseapp.com",
+    databaseURL: "https://simresc-97132-default-rtdb.firebaseio.com",
+    projectId: "simresc-97132",
+    storageBucket: "simresc-97132.firebasestorage.app",
+    messagingSenderId: "609109651582",
+    appId: "1:609109651582:web:8ec51924134b621431282f"
+  };
+
+  // Inicializar Firebase
+  firebase.initializeApp(firebaseConfig);
+  const database = firebase.database();
+
   let currentUser = null;
   let imageDataURL = "";
   let cmEditor = null;
   let saveTimeout = null;
 
-  // --- ABSTRACCIÓN DEL EDITOR (Por si CodeMirror falla) ---
-  function getCodeValue() {
-    return cmEditor ? cmEditor.getValue() : document.getElementById('codeArea').value;
-  }
-  function setCodeValue(val) {
-    if (cmEditor) cmEditor.setValue(val);
-    else document.getElementById('codeArea').value = val;
-  }
+  function getCodeValue() { return cmEditor ? cmEditor.getValue() : document.getElementById('codeArea').value; }
+  function setCodeValue(val) { if (cmEditor) cmEditor.setValue(val); else document.getElementById('codeArea').value = val; }
 
-  // --- FUNCIÓN GLOBAL PARA SNIPPETS ---
   window.insertSnippet = function(text) {
     if (cmEditor) {
       cmEditor.replaceSelection(text);
@@ -274,34 +281,30 @@ document.addEventListener('DOMContentLoaded', function() {
       ta.selectionStart = ta.selectionEnd = start + text.length;
       ta.focus();
     }
-    guardarEntregableLocal();
+    triggerCloudSave();
   };
 
-  // --- INICIALIZAR CODEMIRROR DE FORMA SEGURA ---
+  window.triggerCloudSave = function() {
+    clearTimeout(saveTimeout);
+    document.getElementById('syncStatus').style.display = 'none';
+    saveTimeout = setTimeout(guardarEntregableNube, 2500);
+  };
+
   try {
     if (typeof CodeMirror !== 'undefined') {
       cmEditor = CodeMirror.fromTextArea(document.getElementById('codeArea'), { 
         mode: 'javascript', theme: 'dracula', lineNumbers: true, indentUnit: 2, tabSize: 2, matchBrackets: true 
       });
-      cmEditor.on("change", function() {
-        clearTimeout(saveTimeout);
-        saveTimeout = setTimeout(guardarEntregableLocal, 2000);
-      });
-    } else {
-      throw new Error("Librería no encontrada");
-    }
+      cmEditor.on("change", triggerCloudSave);
+    } else { throw new Error("CodeMirror falló"); }
   } catch(e) {
-    console.warn("Usando editor de texto básico como respaldo de seguridad.");
     document.getElementById('codeArea').style.display = 'block'; 
-    document.getElementById('codeArea').addEventListener('input', function() {
-      clearTimeout(saveTimeout);
-      saveTimeout = setTimeout(guardarEntregableLocal, 2000);
-    });
+    document.getElementById('codeArea').addEventListener('input', triggerCloudSave);
   }
 
-  // --- LÓGICA DE SESIÓN Y ADMIN ---
+  // --- LÓGICA DE SESIÓN (FIREBASE) ---
   function initApp() {
-    let savedUser = localStorage.getItem('rescue_user');
+    let savedUser = localStorage.getItem('rescue_user_session'); // Solo guarda quién está logueado
     if(savedUser) {
       currentUser = JSON.parse(savedUser);
       completarLogin();
@@ -312,89 +315,131 @@ document.addEventListener('DOMContentLoaded', function() {
     let u = document.getElementById('inUsername').value.trim();
     let p = document.getElementById('inPin').value.trim();
     
-    if(u === "" || p.length < 4) {
-      alert("Ingresa un usuario válido y un PIN de al menos 4 caracteres.");
-      return;
-    }
+    if(u === "" || p.length < 4) { alert("Ingresa un usuario y un PIN (Mín 4 carácteres)."); return; }
     
-    let dbKey = 'rescue_data_' + u;
-    let existing = localStorage.getItem(dbKey);
-    
-    if(existing) {
-      let data = JSON.parse(existing);
-      if(data.pin !== p) {
-        alert("PIN incorrecto para el usuario: " + u);
-        return;
+    // Verificamos en Firebase
+    database.ref('usuarios/' + u).once('value').then((snapshot) => {
+      if(snapshot.exists()) {
+        let data = snapshot.val();
+        if(data.pin !== p) { alert("PIN incorrecto para este usuario."); return; }
+      } else {
+        // Nuevo usuario
+        let initialCode = getCodeValue();
+        database.ref('usuarios/' + u).set({ pin: p, code: initialCode, logica: "", image: "" });
       }
-    } else {
-      let initialCode = getCodeValue();
-      localStorage.setItem(dbKey, JSON.stringify({ pin: p, code: initialCode, logica: "", image: "" }));
-    }
-    
-    currentUser = { username: u, pin: p };
-    localStorage.setItem('rescue_user', JSON.stringify(currentUser));
-    completarLogin();
+      
+      currentUser = { username: u, pin: p };
+      localStorage.setItem('rescue_user_session', JSON.stringify(currentUser));
+      completarLogin();
+    }).catch(err => alert("Error al conectar con la base de datos: " + err));
   });
 
   function completarLogin() {
     document.getElementById('loginModal').style.display = 'none';
     document.getElementById('userBadge').innerText = "👤 " + currentUser.username + " (Salir)";
     
-    if(currentUser.username === "Axel" && currentUser.pin === "1234") {
+    if(currentUser.username.toLowerCase() === "axel" && currentUser.pin === "1234") {
       document.getElementById('tabAdmin').style.display = "block";
-      cargarPanelAdmin();
+      cargarPanelAdminNube();
     }
-    cargarProgreso();
+    cargarProgresoNube();
   }
 
   window.cerrarSesion = function() {
-    if(currentUser) guardarEntregableLocal(); 
-    localStorage.removeItem('rescue_user');
+    if(currentUser) guardarEntregableNube(); 
+    localStorage.removeItem('rescue_user_session');
     location.reload();
   };
 
-  function cargarProgreso() {
-    let dbKey = 'rescue_data_' + currentUser.username;
-    let data = JSON.parse(localStorage.getItem(dbKey));
-    if(data) {
-      if(data.code) setCodeValue(data.code);
-      if(data.logica) document.getElementById('inLogica').value = data.logica;
-      if(data.image) {
-        imageDataURL = data.image;
-        let img = document.getElementById('imgPreview');
-        img.src = imageDataURL;
-        img.style.display = 'block';
+  function cargarProgresoNube() {
+    database.ref('usuarios/' + currentUser.username).once('value').then((snapshot) => {
+      if(snapshot.exists()) {
+        let data = snapshot.val();
+        if(data.code) setCodeValue(data.code);
+        if(data.logica) document.getElementById('inLogica').value = data.logica;
+        if(data.image) {
+          imageDataURL = data.image;
+          let img = document.getElementById('imgPreview');
+          img.src = imageDataURL;
+          img.style.display = 'block';
+        }
       }
-    }
+    });
   }
 
-  window.guardarEntregableLocal = function() {
-    if(!currentUser) return;
-    let dbKey = 'rescue_data_' + currentUser.username;
+  window.guardarEntregableNube = function() {
+    if(!currentUser || currentUser.username.toLowerCase() === "axel") return; 
     let data = {
       pin: currentUser.pin,
       code: getCodeValue(),
       logica: document.getElementById('inLogica').value,
       image: imageDataURL
     };
-    localStorage.setItem(dbKey, JSON.stringify(data));
+    database.ref('usuarios/' + currentUser.username).set(data).then(() => {
+      document.getElementById('syncStatus').style.display = 'inline-block';
+    }).catch(err => console.error("Fallo al sincronizar", err));
   };
 
-  window.previewImage = function(event) {
+  window.previewAndCompressImage = function(event) {
     let file = event.target.files[0];
     if(!file) return;
     let reader = new FileReader();
     reader.onload = function(e) {
-      imageDataURL = e.target.result;
-      let img = document.getElementById('imgPreview');
-      img.src = imageDataURL;
-      img.style.display = 'block';
-      guardarEntregableLocal();
+      let img = new Image();
+      img.onload = function() {
+        let canvas = document.createElement('canvas');
+        let MAX_WIDTH = 800; // Resolución máxima
+        let scaleSize = MAX_WIDTH / img.width;
+        canvas.width = MAX_WIDTH;
+        canvas.height = img.height * scaleSize;
+        
+        let ctx = canvas.getContext("2d");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        
+        imageDataURL = canvas.toDataURL("image/jpeg", 0.7); // 70% calidad
+        let preview = document.getElementById('imgPreview');
+        preview.src = imageDataURL;
+        preview.style.display = 'block';
+        triggerCloudSave();
+      }
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   };
 
-  // --- GENERACIÓN DE REPORTES HTML (SOLO PARA ADMIN) ---
+  // --- ADMINISTRADOR FIREBASE ---
+  function cargarPanelAdminNube() {
+    database.ref('usuarios/').once('value').then((snapshot) => {
+      let tbody = "";
+      snapshot.forEach((child) => {
+        let user = child.key;
+        let data = child.val();
+        tbody += "<tr>" +
+          "<td><strong>" + user + "<\/strong><\/td>" +
+          "<td>" + data.pin + "<\/td>" +
+          "<td>" +
+            "<button onclick=\"descargarReporteDeNube('" + user + "')\" class=\"primary\">Descargar<\/button> " +
+            "<button onclick=\"borrarUsuarioNube('" + user + "')\" class=\"danger\">Eliminar<\/button>" +
+          "<\/td>" +
+        "<\/tr>";
+      });
+      if(tbody === "") tbody = "<tr><td colspan='3'>No hay usuarios registrados.<\/td><\/tr>";
+      document.getElementById('adminTableBody').innerHTML = tbody;
+    });
+  }
+
+  window.descargarReporteDeNube = function(user) {
+    database.ref('usuarios/' + user).once('value').then((snapshot) => {
+      if(snapshot.exists()) generarDescargaHTML(user, snapshot.val());
+    });
+  };
+
+  window.borrarUsuarioNube = function(user) {
+    if(confirm("¿Eliminar progreso de este usuario de la nube?")) {
+      database.ref('usuarios/' + user).remove().then(() => cargarPanelAdminNube());
+    }
+  };
+
   function generarDescargaHTML(username, dataObj) {
     let logicText = dataObj.logica ? dataObj.logica.replace(/\n/g, '<br>') : "Sin respuesta.";
     let imgSrc = dataObj.image ? "<img src=\"" + dataObj.image + "\" alt=\"Diagrama\">" : "<p>Sin imagen adjunta.<\/p>";
@@ -422,41 +467,6 @@ document.addEventListener('DOMContentLoaded', function() {
     a.download = "Reporte_" + username + ".html";
     a.click();
   }
-
-  // --- FUNCIONES DEL ADMIN ---
-  function cargarPanelAdmin() {
-    let tbody = "";
-    for (let i = 0; i < localStorage.length; i++) {
-      let key = localStorage.key(i);
-      if (key.startsWith('rescue_data_')) {
-        let user = key.replace('rescue_data_', '');
-        let data = JSON.parse(localStorage.getItem(key));
-        tbody += "<tr>" +
-          "<td><strong>" + user + "<\/strong><\/td>" +
-          "<td>" + data.pin + "<\/td>" +
-          "<td>" +
-            "<button onclick=\"descargarReporteDe('" + user + "')\" class=\"primary\">Descargar<\/button> " +
-            "<button onclick=\"borrarUsuario('" + key + "')\" class=\"danger\">Eliminar<\/button>" +
-          "<\/td>" +
-        "<\/tr>";
-      }
-    }
-    if(tbody === "") tbody = "<tr><td colspan='3'>No hay usuarios registrados.<\/td><\/tr>";
-    document.getElementById('adminTableBody').innerHTML = tbody;
-  }
-
-  window.descargarReporteDe = function(user) {
-    let dbKey = 'rescue_data_' + user;
-    let data = JSON.parse(localStorage.getItem(dbKey));
-    if(data) generarDescargaHTML(user, data);
-  };
-
-  window.borrarUsuario = function(key) {
-    if(confirm("¿Eliminar progreso de este usuario?")) {
-      localStorage.removeItem(key);
-      cargarPanelAdmin();
-    }
-  };
 
   window.switchTab = function(tabName) {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
@@ -683,7 +693,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
   }
 
-  // --- ARRANQUE INICIAL ---
   var canvas = document.getElementById('simCanvas'); var dpr = window.devicePixelRatio || 1;
   canvas.width = CANVAS_W * dpr; canvas.height = CANVAS_H * dpr;
   canvasCtx = canvas.getContext('2d'); canvasCtx.scale(dpr, dpr);
