@@ -3,9 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Simulador — Reto Final del Robot Explorador</title>
+<title>Simulador</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<!-- Archivos del Editor CodeMirror y Tema Dracula -->
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/theme/dracula.min.css">
 
@@ -113,7 +112,7 @@
 
 <div class="header-nav">
   <div class="header-info">
-    <h1>Entorno de Desarrollo: Rescue Line</h1>
+    <h1>Entorno de Desarrollo</h1>
     <span id="userBadge" class="user-badge" onclick="cerrarSesion()">👤 Invitado (Click para salir)</span>
   </div>
 </div>
@@ -467,7 +466,6 @@ document.addEventListener('DOMContentLoaded', function() {
     if(tabName === 'simulador' && cmEditor) cmEditor.refresh();
   };
 
-  // --- MOTOR FÍSICO Y GRÁFICO (SIMULADOR) ---
   var CANVAS_W = 860, CANVAS_H = 480, TRACK_X0 = 60, TRACK_X1 = 800;
   var ROBOT_RADIUS = 11, WHEEL_BASE = 24, MAX_SPEED_PX_S = 130;
   var LOOKAHEAD = 34, STRAY_THRESHOLD = 55, TOF_CONE_DEG = 22, TOF_MAX_RANGE = 130;
